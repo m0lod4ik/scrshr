@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель | Система трансляции экрана</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Система трансляции экрана</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Трансляция</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('admin') }}">Админ-панель</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        Пользователь: {{ current_user.username }}
+                    </span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Выйти</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4>Управление пользователями</h4>
+                    </div>
+                    <div class="card-body">
+                        {% if users|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Имя пользователя</th>
+                                        <th>Администратор</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in users %}
+                                    <tr>
+                                        <td>{{ user[0] }}</td>
+                                        <td>{{ user[1] }}{% if user[1] == current_user.username %} (вы){% endif %}</td>
+                                        <td>
+                                            {% if user[2] %}
+                                            <span class="badge bg-success">Да</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Нет</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                {% if user[1] != current_user.username %}
+                                                <!-- Кнопка изменения статуса администратора -->
+                                                <form method="POST" action="{{ url_for('toggle_admin', user_id=user[0]) }}" class="d-inline">
+                                                    <button type="submit"
+                                                        class="btn btn-outline-primary toggle-admin-btn"
+                                                        data-is-admin="{{ user[2] }}"
+                                                        title="{{ 'Убрать права администратора' if user[2] else 'Сделать администратором' }}">
+                                                        {% if user[2] %}
+                                                        <i class="bi bi-shield-minus"></i> Убрать админа
+                                                        {% else %}
+                                                        <i class="bi bi-shield-plus"></i> Сделать админом
+                                                        {% endif %}
+                                                    </button>
+                                                </form>
+
+                                                <!-- Кнопка сброса пароля -->
+                                                <form method="POST" action="{{ url_for('reset_password', user_id=user[0]) }}" class="d-inline">
+                                                    <button type="submit"
+                                                        class="btn btn-outline-warning reset-password-btn"
+                                                        title="Сбросить пароль">
+                                                        <i class="bi bi-key"></i> Сбросить пароль
+                                                    </button>
+                                                </form>
+
+                                                <!-- Кнопка удаления пользователя -->
+                                                <form method="POST" action="{{ url_for('delete_user', user_id=user[0]) }}" class="d-inline">
+                                                    <button type="submit"
+                                                        class="btn btn-outline-danger delete-user-btn"
+                                                        title="Удалить пользователя">
+                                                        <i class="bi bi-trash"></i> Удалить
+                                                    </button>
+                                                </form>
+                                                {% else %}
+                                                <span class="text-muted">Текущий пользователь</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            В системе нет пользователей.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4>Добавить пользователя</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('add_user') }}">
+                            <div class="mb-3">
+                                <label for="new-username" class="form-label">Имя пользователя</label>
+                                <input type="text" class="form-control" id="new-username" name="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="new-password" class="form-label">Пароль</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="new-password" name="password" required>
+                                    <button class="btn btn-outline-secondary" type="button" id="toggle-password-btn">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="is-admin" name="is_admin">
+                                <label class="form-check-label" for="is-admin">Права администратора</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Добавить пользователя</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h4>Системная информация</h4>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Всего пользователей:</strong> <span id="total-users">{{ users|length }}</span></p>
+                        <p><strong>Администраторов:</strong> <span id="total-admins">{{ users|selectattr('2', 'eq', true)|list|length }}</span></p>
+                        <p><strong>Активных подключений:</strong> <span id="active-connections">-</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Специфичный код для админ-страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Подключение к сокету для получения информации о активных подключениях
+            const socket = io();
+
+            socket.on('connect', function() {
+                console.log('Админ-панель: подключено к серверу');
+                socket.emit('admin_get_connections');
+            });
+
+            socket.on('admin_connections_info', function(data) {
+                document.getElementById('active-connections').textContent = data.count;
+            });
+
+            // Переключатель видимости пароля
+            const togglePasswordBtn = document.getElementById('toggle-password-btn');
+            const passwordInput = document.getElementById('new-password');
+
+            if (togglePasswordBtn && passwordInput) {
+                togglePasswordBtn.addEventListener('click', function() {
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+
+                    const icon = this.querySelector('i');
+                    if (type === 'text') {
+                        icon.classList.remove('bi-eye');
+                        icon.classList.add('bi-eye-slash');
+                    } else {
+                        icon.classList.remove('bi-eye-slash');
+                        icon.classList.add('bi-eye');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

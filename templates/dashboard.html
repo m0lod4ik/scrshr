@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления | Система трансляции экрана</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Система трансляции экрана</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('dashboard') }}">Трансляция</a>
+                    </li>
+                    {% if is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin') }}">Админ-панель</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3">
+                        Пользователь: {{ username }}
+                    </span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Выйти</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-9">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4>Трансляция экрана</h4>
+                        <span id="connection-status" class="badge bg-secondary">Подключение...</span>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="screen-container">
+                            <img id="screen-display" src="" alt="Ожидание трансляции..." class="img-fluid border">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Информация</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Статус: <span id="status-text">Подключение...</span></p>
+                        <p>Размер изображения: <span id="image-size">-</span></p>
+                        <div id="fps-counter" class="mb-3">FPS: <span id="fps">0</span></div>
+
+                        {% if is_admin %}
+                        <hr>
+                        <h5>Настройки трансляции</h5>
+                        <div class="mb-3">
+                            <label for="quality-range" class="form-label">Качество: <span id="quality-value">50</span>%</label>
+                            <input type="range" class="form-range" id="quality-range" min="10" max="100" step="5" value="50">
+                        </div>
+                        <div class="mb-3">
+                            <label for="fps-range" class="form-label">Целевой FPS: <span id="fps-target-value">15</span></label>
+                            <input type="range" class="form-range" id="fps-range" min="1" max="30" step="1" value="15">
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            const screenDisplay = document.getElementById('screen-display');
+            const connectionStatus = document.getElementById('connection-status');
+            const statusText = document.getElementById('status-text');
+            const imageSize = document.getElementById('image-size');
+            const fpsCounter = document.getElementById('fps');
+
+            {% if is_admin %}
+            const qualityRange = document.getElementById('quality-range');
+            const qualityValue = document.getElementById('quality-value');
+            const fpsRange = document.getElementById('fps-range');
+            const fpsTargetValue = document.getElementById('fps-target-value');
+
+            // Обработка изменения качества
+            qualityRange.addEventListener('change', function() {
+                const quality = this.value;
+                qualityValue.textContent = quality;
+                socket.emit('change_quality', { quality: quality });
+            });
+
+            // Обработка изменения FPS
+            fpsRange.addEventListener('change', function() {
+                const fps = this.value;
+                fpsTargetValue.textContent = fps;
+                socket.emit('change_fps', { fps: fps });
+            });
+            {% endif %}
+
+            // Счетчик FPS
+            let frameCount = 0;
+            let lastTime = performance.now();
+
+            function updateFPS() {
+                const now = performance.now();
+                const elapsed = now - lastTime;
+
+                if (elapsed >= 1000) {
+                    fpsCounter.textContent = Math.round((frameCount * 1000) / elapsed);
+                    frameCount = 0;
+                    lastTime = now;
+                }
+            }
+
+            // Подключение к серверу
+            socket.on('connect', function() {
+                connectionStatus.textContent = 'Подключено';
+                connectionStatus.className = 'badge bg-success';
+                statusText.textContent = 'Подключено';
+            });
+
+            socket.on('disconnect', function() {
+                connectionStatus.textContent = 'Отключено';
+                connectionStatus.className = 'badge bg-danger';
+                statusText.textContent = 'Отключено от сервера';
+            });
+
+            socket.on('connection_status', function(data) {
+                if (data.status === 'connected') {
+                    connectionStatus.textContent = 'Подключено';
+                    connectionStatus.className = 'badge bg-success';
+                    statusText.textContent = 'Трансляция активна';
+                }
+            });
+
+            // Получение обновлений экрана
+            socket.on('screen_update', function(data) {
+                screenDisplay.src = 'data:image/jpeg;base64,' + data.image;
+                frameCount++;
+                updateFPS();
+
+                // Расчет размера изображения в KB
+                const byteSize = (data.image.length * 3) / 4; // Base64 размер в байтах
+                imageSize.textContent = Math.round(byteSize / 1024) + ' KB';
+            });
+
+            // Уведомления от сервера
+            socket.on('notification', function(data) {
+                alert(data.message);
+            });
+        });
+    </script>
+</body>
+</html>
